@@ -57,10 +57,13 @@ public class FirstRunScreen extends Screen {
                 }).width(250).build());
         rows.addChild(Button.builder(
                 Component.translatable("universalsettings.firstrun.keep"),
-                button -> {
-                    SyncManager.get().keepLocalAsNewProfile();
-                    onClose();
-                }).width(250).build());
+                button -> this.minecraft.setScreen(new NameProfileScreen(this,
+                        Component.translatable("universalsettings.firstrun.keepTitle"),
+                        SyncManager.deviceProfileName(),
+                        name -> {
+                            SyncManager.get().keepLocalAsNewProfile(name);
+                            onClose();
+                        }))).width(250).build());
         rows.addChild(Button.builder(
                 Component.translatable("universalsettings.firstrun.later"),
                 button -> onClose()).width(250).build());

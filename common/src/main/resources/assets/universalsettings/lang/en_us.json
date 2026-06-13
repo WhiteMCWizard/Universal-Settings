@@ -9,6 +9,7 @@
   "universalsettings.firstrun.message": "You have remote settings, but this device's settings differ. What would you like to do?",
   "universalsettings.firstrun.useSynced": "Use remote settings",
   "universalsettings.firstrun.keep": "Keep mine (upload as new profile)",
+  "universalsettings.firstrun.keepTitle": "Name your profile",
   "universalsettings.firstrun.later": "Ask me next time",
   "universalsettings.profiles.title": "Settings Profiles",
   "universalsettings.profiles.button": "Profiles",

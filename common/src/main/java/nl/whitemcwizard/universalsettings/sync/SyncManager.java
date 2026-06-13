@@ -136,10 +136,9 @@ public class SyncManager {
         });
     }
 
-    public void keepLocalAsNewProfile() {
+    public void keepLocalAsNewProfile(String name) {
         Minecraft mc = Minecraft.getInstance();
         ModConfig config = ModConfig.get();
-        String name = deviceProfileName();
         config.activeProfile = name;
         config.firstRunDone = true;
         config.save();
@@ -742,7 +741,7 @@ public class SyncManager {
         *///?}
     }
 
-    private static String deviceProfileName() {
+    public static String deviceProfileName() {
         String name = "device";
         try {
             name = InetAddress.getLocalHost().getHostName();
