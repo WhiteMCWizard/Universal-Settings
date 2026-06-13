@@ -1,0 +1,43 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        maven {
+            name = 'KikuGie'
+            url = uri('https://maven.kikugie.dev/releases')
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'Fabric'
+                    url = uri('https://maven.fabricmc.net')
+                }
+            }
+            filter {
+                includeGroupAndSubgroups('net.fabricmc')
+            }
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    id 'dev.kikugie.stonecutter' version '0.9.5'
+}
+
+stonecutter {
+    kotlinController = false
+    centralScript = 'build.gradle'
+
+    create(getRootProject()) {
+        // One entry per supported Minecraft version; per-version properties live in
+        // versions/{version}/gradle.properties. The branches inherit this list.
+        versions '1.20.1', '1.21.1', '1.21.11', '26.1.2'
+        branch 'common'
+        branch 'fabric'
+        branch 'neoforge'
+        vcsVersion = '26.1.2'
+    }
+}
+
+rootProject.name = 'Universal-Settings'

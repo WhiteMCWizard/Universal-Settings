@@ -1,0 +1,144 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+// Resolves a per-version property from versions/{version}/gradle.properties at the
+// repository root (owned by the root-branch node of the same version). A branch can
+// override one in its own {branch}/versions/{version}/gradle.properties.
+ext.versionProp = { String key ->
+    def own = project.findProperty(key)
+    if (own != null) {
+        return own
+    }
+    def value = rootProject.project(":${stonecutter.current.project}").findProperty(key)
+    if (value == null) {
+        throw new GradleException("Missing property '${key}' for version ${stonecutter.current.project}")
+    }
+    return value
+}
+
+// True for pre-NeoForm versions (<=1.20.1) that need ModDev's legacy (MCP/SRG) toolchain.
+ext.legacyForgeVersion = {
+    def own = project.findProperty('legacy_forge')
+    def value = own != null ? own
+            : rootProject.project(":${stonecutter.current.project}").findProperty('legacy_forge')
+    return Boolean.parseBoolean((value ?: 'false').toString())
+}
+
+// The node is named after the version; its parent project is the branch.
+ext.branchName = project.parent.name
+
+// All version nodes share the same project name (e.g. '26.1.2'), which would give
+// every branch the same Gradle module identity — cross-branch project dependencies
+// would then resolve back to the consumer itself. Branch-qualified groups keep
+// identities distinct.
+ext.modGroup = project.group.toString()
+group = "${modGroup}.${branchName}"
+
+base {
+    archivesName = "${mod_id}-${branchName}-${versionProp('minecraft_version')}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of((versionProp('java_version') as String).toInteger())
+    withSourcesJar()
+    withJavadocJar()
+}
+
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Sponge'
+                url = 'https://repo.spongepowered.org/repository/maven-public'
+            }
+        }
+        filter { includeGroupAndSubgroups('org.spongepowered') }
+    }
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
+    }
+}
+
+sourcesJar {
+    from(rootProject.file('LICENSE')) {
+        rename { "${it}_${mod_name}" }
+    }
+}
+
+jar {
+    from(rootProject.file('LICENSE')) {
+        rename { "${it}_${mod_name}" }
+    }
+
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_name,
+                'Specification-Vendor'  : mod_author,
+                'Specification-Version' : project.jar.archiveVersion,
+                'Implementation-Title'  : "${branchName}-${stonecutter.current.project}",
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor' : mod_author,
+                'Built-On-Minecraft'    : versionProp('minecraft_version')
+        ])
+    }
+}
+
+processResources {
+    var expandProps = [
+            'version'                      : version,
+            'group'                        : modGroup, // not the task's group
+            'minecraft_version'            : versionProp('minecraft_version'),
+            'minecraft_version_range_neoforge': versionProp('minecraft_version_range_neoforge'),
+            'minecraft_version_range_fabric': versionProp('minecraft_version_range_fabric'),
+            'fabric_version'               : versionProp('fabric_version'),
+            'fabric_loader_version'        : fabric_loader_version,
+            'mod_name'                     : mod_name,
+            'mod_author'                   : mod_author,
+            'mod_id'                       : mod_id,
+            'license'                      : license,
+            'description'                  : project.description,
+            'neoforge_version'             : versionProp('neoforge_version'),
+            'neoforge_version_range'       : versionProp('neoforge_version_range'),
+            'neoforge_loader_version_range': versionProp('neoforge_loader_version_range'),
+            'credits'                      : credits,
+            'java_version'                 : versionProp('java_version'),
+            'pack_format'                  : versionProp('pack_format'),
+            'pack_format_range_line'       : versionProp('pack_format_range_line'),
+            'mixin_java_level'             : versionProp('mixin_java_level'),
+            // Empty except for the SRG-obfuscated neoforge 1.20.1 jar, which needs
+            // a mixin refmap (branch override in its own versions/ properties).
+            'mixin_refmap_line'            : versionProp('mixin_refmap_line')
+    ]
+
+    var jsonExpandProps = expandProps.collectEntries {
+        key, value -> [(key): value instanceof String ? value.replace("\n", "\\\\n") : value]
+    }
+
+    filesMatching(['META-INF/mods.toml', 'META-INF/neoforge.mods.toml']) {
+        expand expandProps
+    }
+
+    filesMatching(['pack.mcmeta', 'fabric.mod.json', '*.mixins.json']) {
+        expand jsonExpandProps
+    }
+
+    inputs.properties(expandProps)
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifactId base.archivesName.get()
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url System.getenv('local_maven_url')
+        }
+    }
+}

@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Discover versions
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.list.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "versions=$(ls versions | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.loader }} ${{ matrix.mc }}
+    needs: versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ${{ fromJson(needs.versions.outputs.versions) }}
+        loader: [common, fabric, neoforge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build ${{ matrix.loader }} for ${{ matrix.mc }}
+        run: ./gradlew --stacktrace ":${{ matrix.loader }}:${{ matrix.mc }}:build"
+
+      - name: Upload mod jar
+        if: matrix.loader != 'common'
+        uses: actions/upload-artifact@v4
+        with:
+          name: universalsettings-${{ matrix.loader }}-${{ matrix.mc }}
+          path: |
+            ${{ matrix.loader }}/versions/${{ matrix.mc }}/build/libs/*.jar
+            !**/*-sources.jar
+            !**/*-javadoc.jar
+          if-no-files-found: error

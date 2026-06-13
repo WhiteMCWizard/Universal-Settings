@@ -1,0 +1,76 @@
+plugins {
+    id 'multiloader-loader'
+}
+
+// Mojang ships 26.1+ unobfuscated; 'fabric-loom-remap' handles the obfuscated 1.x
+// line (mojmap plus a remap to intermediary), plain 'fabric-loom' the rest.
+def obfuscated = versionProp('minecraft_version').toString().startsWith('1.')
+apply plugin: obfuscated ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
+repositories {
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/releases'
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${versionProp('minecraft_version')}"
+    // ModMenu is compile-only: its entrypoint is only touched when it is installed.
+    if (obfuscated) {
+        // Published Fabric mods are intermediary-mapped on the 1.x line; the mod*
+        // configurations remap them to mojmap.
+        mappings loom.officialMojangMappings()
+        modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${versionProp('fabric_version')}"
+        modCompileOnly "com.terraformersmc:modmenu:${versionProp('modmenu_version')}"
+    } else {
+        implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${versionProp('fabric_version')}"
+        compileOnly "com.terraformersmc:modmenu:${versionProp('modmenu_version')}"
+    }
+}
+
+// Shared sources live in the branch directory, not in this version node's directory.
+def commonDir = rootProject.project(':common').projectDir
+
+loom {
+    def aw = new File(commonDir, "src/main/resources/${mod_id}.accesswidener")
+    if (aw.exists()) {
+        accessWidenerPath.set(aw)
+    }
+    runs {
+        client {
+            client()
+            setConfigName('Fabric Client')
+            ideConfigGenerated(true)
+            runDir('runs/client')
+            // Stable identity so the dev sync server keeps one player across launches.
+            programArgs '--username', 'UniversalDev'
+        }
+        server {
+            server()
+            setConfigName('Fabric Server')
+            ideConfigGenerated(true)
+            runDir('runs/server')
+        }
+    }
+}
+
+// Tag all variants with the mcgradleconventions loader attribute.
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements', 'includeInternal', 'modCompileClasspath'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'fabric')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'fabric')
+            }
+        }
+    }
+}

@@ -1,0 +1,80 @@
+plugins {
+    id 'multiloader-common'
+}
+
+// Shared sources live in the branch directory (common/), not in this version
+// node's directory (common/versions/{version}/).
+def branchDir = project.parent.projectDir
+
+// NeoForm only covers 1.20.2+; older versions compile against vanilla through
+// ModDev's legacy (MCP) toolchain.
+def modDev
+if (legacyForgeVersion()) {
+    apply plugin: 'net.neoforged.moddev.legacyforge'
+    modDev = extensions.getByName('legacyForge')
+    modDev.mcpVersion = versionProp('minecraft_version')
+} else {
+    apply plugin: 'net.neoforged.moddev'
+    modDev = extensions.getByName('neoForge')
+    modDev.neoFormVersion = versionProp('neo_form_version')
+}
+
+modDev.with {
+    def at = new File(branchDir, 'src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
+    }
+}
+
+// ModDev needs the preprocessed sources before it sets up Minecraft artifacts.
+tasks.named('createMinecraftArtifacts') {
+    dependsOn('stonecutterGenerate')
+}
+
+dependencies {
+    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    // Both loaders bundle mixinextras, so it is safe to use in common code.
+    compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.5.3'
+    annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.5.3'
+}
+
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+}
+
+// Stonecutter may point the source sets at preprocessed copies, so the directories
+// are published after evaluation instead of eagerly.
+afterEvaluate {
+    sourceSets.main.java.sourceDirectories.files.each { dir ->
+        artifacts.add('commonJava', dir)
+    }
+    sourceSets.main.resources.sourceDirectories.files.each { dir ->
+        artifacts.add('commonResources', dir)
+    }
+}
+
+// Tag all variants with the mcgradleconventions loader attribute.
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'common')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'common')
+            }
+        }
+    }
+}

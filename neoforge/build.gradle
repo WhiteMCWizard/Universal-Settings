@@ -1,0 +1,108 @@
+plugins {
+    id 'multiloader-loader'
+}
+
+// Shared sources live in the branch directories (neoforge/, common/), not in this
+// version node's directory ({branch}/versions/{version}/).
+def branchDir = project.parent.projectDir
+def commonDir = rootProject.project(':common').projectDir
+
+// NeoForge 1.20.1 is a Forge fork on the MCP/SRG toolchain; ModDev's legacy
+// plugin handles the different artifacts and reobfuscates the jar to SRG.
+def modDev
+if (legacyForgeVersion()) {
+    apply plugin: 'net.neoforged.moddev.legacyforge'
+    modDev = extensions.getByName('legacyForge')
+    // setVersion would resolve net.minecraftforge:forge; the 1.20.1 fork lives at
+    // net.neoforged:forge and needs the dedicated settings property.
+    modDev.enable { s -> s.neoForgeVersion = versionProp('neoforge_version') }
+} else {
+    apply plugin: 'net.neoforged.moddev'
+    modDev = extensions.getByName('neoForge')
+    modDev.version = versionProp('neoforge_version')
+}
+
+modDev.with {
+    def at = new File(commonDir, 'src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
+    }
+    runs {
+        configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
+        }
+        client {
+            client()
+            gameDirectory = this.mkdir(this.file("runs/client"))
+        }
+        if (!legacyForgeVersion()) { // 1.20.1 predates the split client-data run type
+            data {
+                clientData()
+                gameDirectory = this.mkdir(this.file("runs/data"))
+                programArguments.addAll '--mod', project.mod_id, '--all', '--output', new File(branchDir, 'src/generated/resources').getAbsolutePath(), '--existing', new File(branchDir, 'src/main/resources').getAbsolutePath()
+            }
+        }
+        server {
+            server()
+            this.file("runs/server").createParentDirectories()
+            gameDirectory = this.mkdir(this.file("runs/server"))
+        }
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir new File(branchDir, 'src/generated/resources') }
+
+// ModDev needs the preprocessed sources before it sets up Minecraft artifacts.
+tasks.named('createMinecraftArtifacts') {
+    dependsOn('stonecutterGenerate')
+}
+
+if (legacyForgeVersion()) {
+    // On the SRG runtime mixins need an annotation-processor-generated refmap, and
+    // the config is discovered through the jar manifest rather than mods.toml.
+    dependencies {
+        annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    }
+    mixin {
+        add sourceSets.main, "${mod_id}.refmap.json"
+        config "${mod_id}.mixins.json"
+    }
+    tasks.named('jar', Jar) {
+        manifest.attributes(['MixinConfigs': "${mod_id}.mixins.json"])
+    }
+}
+
+processResources {
+    // Ship only the metadata file the loader will parse: mods.toml on the Forge
+    // 1.20.1 lineage, neoforge.mods.toml on modern NeoForge.
+    if (legacyForgeVersion()) {
+        exclude 'META-INF/neoforge.mods.toml'
+    } else {
+        exclude 'META-INF/mods.toml'
+    }
+}
+
+// Tag all variants with the mcgradleconventions loader attribute.
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'neoforge')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName, it.getTaskName(null, 'jarJar')].each { variant ->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'neoforge')
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+{$DOMAIN} {
+	reverse_proxy universalsettings:8080
+}

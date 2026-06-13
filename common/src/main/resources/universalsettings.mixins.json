@@ -1,0 +1,17 @@
+{
+  "required": true,
+  ${mixin_refmap_line}
+  "minVersion": "0.8",
+  "package": "nl.whitemcwizard.universalsettings.mixin",
+  "compatibilityLevel": "${mixin_java_level}",
+  "mixins": [],
+  "client": [
+    "OptionsMixin",
+    "OptionsScreenMixin",
+    "ServerListMixin"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

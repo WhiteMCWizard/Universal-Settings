@@ -1,0 +1,35 @@
+{
+    "schemaVersion": 1,
+    "id": "${mod_id}",
+    "version": "${version}",
+    "name": "${mod_name}",
+    "description": "${description}",
+    "authors": [
+        "${mod_author}"
+    ],
+    "contact": {
+        "homepage": "https://github.com/WhiteMCWizard/Universal-Settings",
+        "sources": "https://github.com/WhiteMCWizard/Universal-Settings",
+        "issues": "https://github.com/WhiteMCWizard/Universal-Settings/issues"
+    },
+    "license": "${license}",
+    "icon": "${mod_id}.png",
+    "environment": "client",
+    "entrypoints": {
+        "client": [
+            "nl.whitemcwizard.universalsettings.UniversalSettingsFabric"
+        ],
+        "modmenu": [
+            "nl.whitemcwizard.universalsettings.ModMenuIntegration"
+        ]
+    },
+    "mixins": [
+        "${mod_id}.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=${fabric_loader_version}",
+        "fabric-api": "*",
+        "minecraft": "${minecraft_version_range_fabric}",
+        "java": ">=${java_version}"
+    }
+}

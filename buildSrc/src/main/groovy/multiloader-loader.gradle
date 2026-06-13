@@ -1,0 +1,59 @@
+plugins {
+    id 'multiloader-common'
+}
+
+configurations {
+    commonJava{
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    commonResources{
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+// The common code for this loader node is the same-version node of the `common`
+// branch (e.g. :common:26.1.2 for :fabric:26.1.2).
+def commonPath = stonecutter.node.sibling('common').hierarchy.toString()
+
+dependencies {
+    compileOnly(project(commonPath)) {
+        def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+        attributes {
+            attribute(loaderAttribute, 'common')
+        }
+    }
+    commonJava project(path: commonPath, configuration: 'commonJava')
+    commonResources project(path: commonPath, configuration: 'commonResources')
+}
+
+// Stonecutter prepares the common node's (possibly preprocessed) sources; the
+// commonJava/commonResources artifacts are plain directories with no task wiring.
+def commonGenerate = "${commonPath}:stonecutterGenerate"
+
+tasks.named('compileJava', JavaCompile) {
+    dependsOn(commonGenerate)
+    dependsOn(configurations.commonJava)
+    source(configurations.commonJava)
+}
+
+processResources {
+    dependsOn(commonGenerate)
+    dependsOn(configurations.commonResources)
+    from(configurations.commonResources)
+}
+
+tasks.named('javadoc', Javadoc).configure {
+    dependsOn(commonGenerate)
+    dependsOn(configurations.commonJava)
+    source(configurations.commonJava)
+}
+
+tasks.named('sourcesJar', Jar) {
+    dependsOn(commonGenerate)
+    dependsOn(configurations.commonJava)
+    from(configurations.commonJava)
+    dependsOn(configurations.commonResources)
+    from(configurations.commonResources)
+}
