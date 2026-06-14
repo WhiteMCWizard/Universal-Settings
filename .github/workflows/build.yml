@@ -29,6 +29,9 @@ jobs:
       matrix:
         mc: ${{ fromJson(needs.versions.outputs.versions) }}
         loader: [common, fabric, neoforge]
+        include:
+          - loader: forge
+            mc: '1.20.1'
     steps:
       - uses: actions/checkout@v4
 
