@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.auth.SessionAuthenticator;
 import nl.whitemcwizard.universalsettings.config.ModConfig;
+import nl.whitemcwizard.universalsettings.profile.AccountServers;
 import nl.whitemcwizard.universalsettings.profile.ProfileData;
 import nl.whitemcwizard.universalsettings.profile.ProfileSummary;
 
@@ -18,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -122,6 +124,52 @@ public class ApiClient {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build());
         expectOk(response, "POST " + path);
+    }
+
+    /**
+     * Fetches the account-level server list and its sync scope. Returns empty when
+     * the server predates the account endpoint (HTTP 404), so a newer mod keeps
+     * working against an older server instead of failing its whole sync.
+     */
+    public Optional<AccountServers> fetchAccountServers(UUID uuid) throws IOException, InterruptedException {
+        String path = "/players/" + undashed(uuid) + "/servers";
+        HttpResponse<String> response = sendAuthed(token -> builder(path)
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build());
+        if (response.statusCode() == 404) {
+            return Optional.empty();
+        }
+        expectOk(response, "GET " + path);
+        ServersDto dto = gson.fromJson(response.body(), ServersDto.class);
+        byte[] serversDat = dto.serversDat == null ? null : Base64.getDecoder().decode(dto.serversDat);
+        // The wire format is lowercase ('account'/'profile'/'off'); ModConfig uses
+        // the uppercase SERVERS_* constants.
+        String scope = dto.scope == null ? null : dto.scope.toUpperCase(Locale.ROOT);
+        return Optional.of(new AccountServers(scope, serversDat));
+    }
+
+    /**
+     * Updates the account-level server list and/or scope. A null {@code serversDat}
+     * leaves the stored list untouched (scope-only update). Returns false when the
+     * server predates the account endpoint (HTTP 404).
+     */
+    public boolean putAccountServers(UUID uuid, String scope, byte[] serversDat)
+            throws IOException, InterruptedException {
+        String path = "/players/" + undashed(uuid) + "/servers";
+        ServersDto body = new ServersDto();
+        body.scope = scope == null ? null : scope.toLowerCase(Locale.ROOT);
+        body.serversDat = serversDat == null ? null : Base64.getEncoder().encodeToString(serversDat);
+        String json = gson.toJson(body);
+        HttpResponse<String> response = sendAuthed(token -> jsonBuilder(path)
+                .header("Authorization", "Bearer " + token)
+                .PUT(HttpRequest.BodyPublishers.ofString(json))
+                .build());
+        if (response.statusCode() == 404) {
+            return false;
+        }
+        expectOk(response, "PUT " + path);
+        return true;
     }
 
     public List<String> fetchGlobalExclusions(UUID uuid) throws IOException, InterruptedException {
@@ -256,6 +304,11 @@ public class ApiClient {
 
     private static class ExclusionsDto {
         List<String> excludedKeys;
+    }
+
+    private static class ServersDto {
+        String scope;
+        String serversDat;
     }
 
     private static class PutResponse {

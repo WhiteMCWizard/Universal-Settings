@@ -35,10 +35,23 @@ public class ModConfig {
 
     private static ModConfig instance;
 
+    public static final String SERVERS_ACCOUNT = "ACCOUNT";
+    public static final String SERVERS_PROFILE = "PROFILE";
+    public static final String SERVERS_OFF = "OFF";
+
     public String serverUrl = defaultServerUrl();
     public boolean enabled = true;
     public String activeProfile = null;
+    // Legacy on/off flag, kept only to migrate older configs into serversMode.
     public boolean syncServers = true;
+    // How the multiplayer server list syncs: ACCOUNT (one list shared by every
+    // profile, the default), PROFILE (each profile keeps its own), or OFF. Left
+    // null until normalized so a pre-existing config's syncServers choice carries
+    // over. The account list and its scope are the account-wide source of truth.
+    public String serversMode = null;
+    // Account-level servers.dat as last seen on the server (base64), so offline
+    // sessions can still apply it and change detection can compare against it.
+    public String accountServersDatCache = null;
     public boolean firstRunDone = false;
     public String lastSyncedHash = "";
     public long lastSyncedAt = 0;
@@ -71,8 +84,22 @@ public class ModConfig {
         if (instance == null) {
             instance = new ModConfig();
         }
+        // Migrate the legacy on/off toggle into the three-way mode on first load.
+        if (instance.serversMode == null) {
+            instance.serversMode = instance.syncServers ? SERVERS_ACCOUNT : SERVERS_OFF;
+        }
         // Write defaults on first launch so users can discover and edit the file.
         instance.save();
+    }
+
+    /** Whether the multiplayer server list syncs at all (any mode but OFF). */
+    public boolean serversSyncEnabled() {
+        return !SERVERS_OFF.equals(serversMode);
+    }
+
+    /** Whether the server list is shared account-wide rather than per-profile. */
+    public boolean serversAccountScoped() {
+        return SERVERS_ACCOUNT.equals(serversMode);
     }
 
     public synchronized void save() {

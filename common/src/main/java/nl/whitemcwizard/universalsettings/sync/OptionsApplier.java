@@ -55,15 +55,27 @@ public final class OptionsApplier {
         /*mc.resizeDisplay();
         *///?}
 
-        if (config.syncServers && profile.serversDat() != null) {
-            Path serversFile = mc.gameDirectory.toPath().resolve("servers.dat");
-            byte[] local = Files.exists(serversFile) ? Files.readAllBytes(serversFile) : null;
-            if (!Arrays.equals(local, profile.serversDat())) {
-                // The multiplayer screen reads servers.dat fresh whenever it opens,
-                // so replacing the bytes is all that's needed.
-                Files.write(serversFile, profile.serversDat());
-            }
+        // The per-profile server list is only applied in PROFILE mode; ACCOUNT mode
+        // applies the account-level list separately (see SyncManager).
+        if (config.serversMode.equals(ModConfig.SERVERS_PROFILE)) {
+            applyServersDat(mc, profile.serversDat());
         }
         Constants.LOG.info("Applied profile '{}' ({} options)", profile.name(), profile.options().size());
+    }
+
+    /**
+     * Writes {@code serversDat} to the game's servers.dat when it differs from
+     * what's on disk. No-op when {@code serversDat} is null. The multiplayer screen
+     * reads servers.dat fresh whenever it opens, so replacing the bytes is enough.
+     */
+    public static void applyServersDat(Minecraft mc, byte[] serversDat) throws IOException {
+        if (serversDat == null) {
+            return;
+        }
+        Path serversFile = mc.gameDirectory.toPath().resolve("servers.dat");
+        byte[] local = Files.exists(serversFile) ? Files.readAllBytes(serversFile) : null;
+        if (!Arrays.equals(local, serversDat)) {
+            Files.write(serversFile, serversDat);
+        }
     }
 }

@@ -331,6 +331,51 @@ describe('profiles', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('defaults the account server list to scope "account" with no data', async () => {
+    const token = await getToken(UUID);
+    const res = await getAuthed(token, `/players/${UUID}/servers`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ scope: 'account', serversDat: null });
+  });
+
+  it('round-trips the account server list and updates scope independently', async () => {
+    const token = await getToken(UUID);
+    const bytes = Buffer.from([0x0a, 0x00, 0x00, 0x09]).toString('base64');
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/players/${UUID}/servers`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { scope: 'account', serversDat: bytes },
+    });
+    expect(put.statusCode).toBe(200);
+
+    let res = await getAuthed(token, `/players/${UUID}/servers`);
+    expect(res.json()).toEqual({ scope: 'account', serversDat: bytes });
+
+    // A scope-only update must preserve the stored list.
+    const scopeOnly = await app.inject({
+      method: 'PUT',
+      url: `/players/${UUID}/servers`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { scope: 'profile' },
+    });
+    expect(scopeOnly.statusCode).toBe(200);
+    res = await getAuthed(token, `/players/${UUID}/servers`);
+    expect(res.json()).toEqual({ scope: 'profile', serversDat: bytes });
+  });
+
+  it('rejects an oversized account server list', async () => {
+    const token = await getToken(UUID);
+    const tooBig = Buffer.alloc(512 * 1024 + 1).toString('base64');
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/players/${UUID}/servers`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { serversDat: tooBig },
+    });
+    expect(res.statusCode).toBe(413);
+  });
+
   it('enforces the profile count quota', async () => {
     const token = await getToken(UUID);
     for (let i = 0; i < 50; i++) {

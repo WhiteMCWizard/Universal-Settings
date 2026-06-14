@@ -8,6 +8,7 @@ import nl.whitemcwizard.universalsettings.config.ModConfig;
 import nl.whitemcwizard.universalsettings.net.ApiClient;
 import nl.whitemcwizard.universalsettings.options.DefaultOptionsDetector;
 import nl.whitemcwizard.universalsettings.options.OptionsFileCodec;
+import nl.whitemcwizard.universalsettings.profile.AccountServers;
 import nl.whitemcwizard.universalsettings.profile.ProfileCache;
 import nl.whitemcwizard.universalsettings.profile.ProfileData;
 import nl.whitemcwizard.universalsettings.profile.ProfileSummary;
@@ -19,6 +20,8 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,7 +112,8 @@ public class SyncManager {
     }
 
     public void onServersSaved() {
-        if (started && !stopping && !applying && ModConfig.get().firstRunDone && ModConfig.get().syncServers) {
+        if (started && !stopping && !applying && ModConfig.get().firstRunDone
+                && ModConfig.get().serversSyncEnabled()) {
             pusher.schedule();
         }
     }
@@ -131,6 +135,11 @@ public class SyncManager {
         config.firstRunDone = true;
         Toasts.show("universalsettings.toast.synced");
         executor.execute(() -> {
+            try {
+                pullAccountServers(mc, config);
+            } catch (Exception e) {
+                Constants.LOG.warn("Could not sync account server list: {}", e.toString());
+            }
             recordSyncedState(mc, config, profile.updatedAt());
             config.save();
         });
@@ -151,6 +160,45 @@ public class SyncManager {
                 if (noteAuthFailed(mc)) {
                     return;
                 }
+                pusher.scheduleRetry();
+            }
+        });
+    }
+
+    /**
+     * Changes the account-wide server-list scope and propagates it. Switching to
+     * ACCOUNT seeds the account list from this machine; switching to PROFILE pushes
+     * the current list into the active profile; OFF just records the scope.
+     */
+    public void setServersMode(String mode) {
+        Minecraft mc = Minecraft.getInstance();
+        ModConfig config = ModConfig.get();
+        config.serversMode = mode;
+        config.save();
+        executor.execute(() -> {
+            try {
+                if (mode.equals(ModConfig.SERVERS_ACCOUNT)) {
+                    byte[] local = readServersDat(mc);
+                    if (api.putAccountServers(playerUuid(mc), mode, local)) {
+                        config.accountServersDatCache = encodeCache(local);
+                    }
+                } else {
+                    // Record the scope account-wide; the stored account list is kept.
+                    api.putAccountServers(playerUuid(mc), mode, null);
+                    if (mode.equals(ModConfig.SERVERS_PROFILE)
+                            && config.firstRunDone && config.activeProfile != null) {
+                        doPush(mc, config, config.activeProfile);
+                    }
+                }
+                recordSyncedState(mc, config, config.lastSyncedAt);
+                config.save();
+                noteOnline(mc);
+            } catch (Exception e) {
+                Constants.LOG.warn("Could not update server-list scope: {}", e.toString());
+                if (noteAuthFailed(mc)) {
+                    return;
+                }
+                noteOffline(mc, e);
                 pusher.scheduleRetry();
             }
         });
@@ -558,6 +606,7 @@ public class SyncManager {
                 () -> DefaultOptionsDetector.isLocalVanillaDefault(mc, optionsFileExisted)).join();
         if (localIsDefault) {
             cacheProfileState(config, remote.get());
+            pullAccountServers(mc, config);
             applyOnRenderThread(mc, remote.get());
             config.activeProfile = remote.get().name();
             config.firstRunDone = true;
@@ -590,9 +639,12 @@ public class SyncManager {
         String previousSyncedHash = config.lastSyncedHash;
         cacheProfileState(config, profile);
         ProfileCache.get().update(profile, null);
+        // Adopt the account-wide scope and list first: it may flip serversMode,
+        // which decides whether the per-profile list belongs in the hash below.
+        pullAccountServers(mc, config);
         String remoteHash = OptionsFileCodec.syncHash(
                 OptionsFileCodec.withoutForcedExclusions(profile.options()),
-                config.syncServers ? profile.serversDat() : null);
+                config.serversMode.equals(ModConfig.SERVERS_PROFILE) ? profile.serversDat() : null);
         if (remoteHash.equals(currentHash(mc, config))) {
             recordSyncedState(mc, config, profile.updatedAt());
             config.save();
@@ -622,7 +674,10 @@ public class SyncManager {
             return;
         }
         try {
-            if (currentHash(mc, config).equals(config.lastSyncedHash)) {
+            // The account server list is hashed separately, so a list-only edit in
+            // ACCOUNT mode won't move the profile hash — check it explicitly.
+            if (currentHash(mc, config).equals(config.lastSyncedHash)
+                    && !accountServersChanged(mc, config)) {
                 return;
             }
             doPush(mc, config, config.activeProfile);
@@ -657,7 +712,9 @@ public class SyncManager {
                     .map(p -> OptionsFileCodec.withoutForcedExclusions(p.options()))
                     .orElseGet(LinkedHashMap::new);
         }
-        byte[] serversDat = config.syncServers ? readServersDat(mc) : null;
+        // Only PROFILE mode stores the list with the profile; ACCOUNT/OFF handle it
+        // through the account-level slot below.
+        byte[] serversDat = profileHashServers(mc, config);
         long updatedAt = api.putProfile(
                 playerUuid(mc), profileName, syncable, serversDat, gameVersion());
         base.putAll(syncable);
@@ -669,6 +726,7 @@ public class SyncManager {
         config.save();
         ProfileCache.get().update(new ProfileData(profileName, base, serversDat,
                 gameVersion(), updatedAt, List.of()), null);
+        pushAccountServers(mc, config);
         noteOnline(mc);
     }
 
@@ -710,8 +768,7 @@ public class SyncManager {
         LinkedHashMap<String, String> local = OptionsFileCodec.parse(mc.options.getFile().toPath());
         LinkedHashMap<String, String> union = OptionsFileCodec.withoutForcedExclusions(config.profileOptionsCache);
         union.putAll(OptionsFileCodec.filterSyncable(local));
-        return OptionsFileCodec.syncHash(union,
-                config.syncServers ? readServersDat(mc) : null);
+        return OptionsFileCodec.syncHash(union, profileHashServers(mc, config));
     }
 
     private void recordSyncedState(Minecraft mc, ModConfig config, long updatedAt) {
@@ -726,6 +783,78 @@ public class SyncManager {
     private static byte[] readServersDat(Minecraft mc) throws IOException {
         Path file = mc.gameDirectory.toPath().resolve("servers.dat");
         return Files.exists(file) ? Files.readAllBytes(file) : null;
+    }
+
+    /**
+     * The server list that participates in the per-profile hash: only in PROFILE
+     * mode does the list travel with the profile. In ACCOUNT/OFF mode it's synced
+     * (or not) through the account-level slot, so it must stay out of the profile
+     * hash or account-only edits would thrash profile pushes.
+     */
+    private static byte[] profileHashServers(Minecraft mc, ModConfig config) throws IOException {
+        return config.serversMode.equals(ModConfig.SERVERS_PROFILE) ? readServersDat(mc) : null;
+    }
+
+    private static byte[] decodeCache(String base64) {
+        return base64 == null ? null : Base64.getDecoder().decode(base64);
+    }
+
+    private static String encodeCache(byte[] bytes) {
+        return bytes == null ? null : Base64.getEncoder().encodeToString(bytes);
+    }
+
+    /** True when the local server list diverges from the synced account-level copy. */
+    private boolean accountServersChanged(Minecraft mc, ModConfig config) throws IOException {
+        return config.serversAccountScoped()
+                && !Arrays.equals(readServersDat(mc), decodeCache(config.accountServersDatCache));
+    }
+
+    /**
+     * Pushes the local server list to the account-wide slot when it changed. No-op
+     * unless in ACCOUNT mode, or when the server predates the account endpoint.
+     */
+    private void pushAccountServers(Minecraft mc, ModConfig config)
+            throws IOException, InterruptedException {
+        if (!accountServersChanged(mc, config)) {
+            return;
+        }
+        byte[] local = readServersDat(mc);
+        if (api.putAccountServers(playerUuid(mc), ModConfig.SERVERS_ACCOUNT, local)) {
+            config.accountServersDatCache = encodeCache(local);
+            config.save();
+        }
+    }
+
+    /**
+     * Pulls the account-wide server list and scope. The scope is the account-wide
+     * source of truth, so it's adopted into the local mode. In ACCOUNT mode the
+     * account list is written to disk (or seeded from this machine when the slot is
+     * still empty). No-op when the server predates the account endpoint.
+     */
+    private void pullAccountServers(Minecraft mc, ModConfig config)
+            throws IOException, InterruptedException {
+        Optional<AccountServers> remote = api.fetchAccountServers(playerUuid(mc));
+        if (remote.isEmpty()) {
+            return;
+        }
+        AccountServers account = remote.get();
+        if (account.scope() != null) {
+            config.serversMode = account.scope();
+        }
+        if (config.serversAccountScoped()) {
+            if (account.serversDat() != null) {
+                OptionsApplier.applyServersDat(mc, account.serversDat());
+                config.accountServersDatCache = encodeCache(account.serversDat());
+            } else {
+                // The account slot is empty (e.g. just enabled): seed it from here.
+                byte[] local = readServersDat(mc);
+                if (local != null
+                        && api.putAccountServers(playerUuid(mc), ModConfig.SERVERS_ACCOUNT, local)) {
+                    config.accountServersDatCache = encodeCache(local);
+                }
+            }
+        }
+        config.save();
     }
 
     private static UUID playerUuid(Minecraft mc) {

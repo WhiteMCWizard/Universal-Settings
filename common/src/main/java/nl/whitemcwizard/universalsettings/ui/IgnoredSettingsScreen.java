@@ -62,6 +62,20 @@ public class IgnoredSettingsScreen extends Screen {
         }
     }
 
+    // Server-list sync scope, cycled in the footer button.
+    private static final List<String> SERVERS_MODES = List.of(
+            ModConfig.SERVERS_ACCOUNT, ModConfig.SERVERS_PROFILE, ModConfig.SERVERS_OFF);
+
+    private static Component serversModeValueLabel(String mode) {
+        return Component.translatable(
+                "universalsettings.ignored.serversMode." + mode.toLowerCase(Locale.ROOT));
+    }
+
+    /** "Server list: <mode>" via the vanilla "%s: %s" key, stable across versions. */
+    private static Component serversModeMessage(Component label, String mode) {
+        return Component.translatable("options.generic_value", label, serversModeValueLabel(mode));
+    }
+
     private final Screen parent;
     private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 45, 61);
 
@@ -145,32 +159,38 @@ public class IgnoredSettingsScreen extends Screen {
         GridLayout.RowHelper footer = footerGrid.createRowHelper(1);
         *///?}
         ModConfig config = ModConfig.get();
-        // CycleButton's builders were reshuffled in 1.21.11 (onOffBuilder(boolean) took
-        // over the intermediary id of the old no-arg overload), so a 1.21.11-built jar
-        // crashes calling it on 1.21.9/1.21.10. That window gets a plain Button toggle
-        // assembled from members whose mappings are stable across 1.21.9-1.21.11.
-        //? if >=1.21.9 && <26.1 {
-        /*Component syncServersLabel = Component.translatable("universalsettings.ignored.syncServers");
-        footer.addChild(Button.builder(CommonComponents.optionStatus(syncServersLabel, config.syncServers),
+        // The CycleButton builder overloads keep shifting between versions: 26.1 takes
+        // the initial value in builder(), older versions set it with withInitialValue(),
+        // and the 1.21.9-1.21.11 window is unstable enough that it gets a plain Button.
+        Component serversModeLabel = Component.translatable("universalsettings.ignored.serversMode");
+        String initialMode = SERVERS_MODES.contains(config.serversMode)
+                ? config.serversMode : ModConfig.SERVERS_ACCOUNT;
+        //? if >=26.1 {
+        footer.addChild(CycleButton.builder(IgnoredSettingsScreen::serversModeValueLabel, initialMode)
+                .withValues(SERVERS_MODES)
+                .create(serversModeLabel,
+                        (button, value) -> SyncManager.get().setServersMode(value)));
+        //?} else if >=1.21.9 {
+        /*int[] modeIdx = { Math.max(0, SERVERS_MODES.indexOf(initialMode)) };
+        footer.addChild(Button.builder(serversModeMessage(serversModeLabel, SERVERS_MODES.get(modeIdx[0])),
                 button -> {
-                    config.syncServers = !config.syncServers;
-                    config.save();
-                    button.setMessage(CommonComponents.optionStatus(syncServersLabel, config.syncServers));
+                    modeIdx[0] = (modeIdx[0] + 1) % SERVERS_MODES.size();
+                    String value = SERVERS_MODES.get(modeIdx[0]);
+                    SyncManager.get().setServersMode(value);
+                    button.setMessage(serversModeMessage(serversModeLabel, value));
                 }).width(200).build());
         *///?} else if >=1.20.3 {
-        footer.addChild(CycleButton.onOffBuilder(config.syncServers)
-                .create(Component.translatable("universalsettings.ignored.syncServers"),
-                        (button, value) -> {
-                            config.syncServers = value;
-                            config.save();
-                        }));
-        //?} else {
-        /*footer.addChild(CycleButton.onOffBuilder(config.syncServers)
-                .create(0, 0, 200, 20, Component.translatable("universalsettings.ignored.syncServers"),
-                        (button, value) -> {
-                            config.syncServers = value;
-                            config.save();
-                        }));
+        /*footer.addChild(CycleButton.<String>builder(IgnoredSettingsScreen::serversModeValueLabel)
+                .withValues(SERVERS_MODES)
+                .withInitialValue(initialMode)
+                .create(serversModeLabel,
+                        (button, value) -> SyncManager.get().setServersMode(value)));
+        *///?} else {
+        /*footer.addChild(CycleButton.<String>builder(IgnoredSettingsScreen::serversModeValueLabel)
+                .withValues(SERVERS_MODES)
+                .withInitialValue(initialMode)
+                .create(0, 0, 200, 20, serversModeLabel,
+                        (button, value) -> SyncManager.get().setServersMode(value)));
         *///?}
         footer.addChild(Button.builder(CommonComponents.GUI_DONE, button -> onClose()).width(200).build());
 

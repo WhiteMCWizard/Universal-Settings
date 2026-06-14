@@ -269,6 +269,64 @@ export function registerProfileRoutes(app: FastifyInstance, db: Db) {
     },
   );
 
+  app.get(
+    '/players/:uuid/servers',
+    { preHandler: requireOwner, schema: { params: UUID_PARAM_SCHEMA } },
+    async (request) => {
+      const { uuid } = request.params as UuidParams;
+      const player = getPlayer.get(uuid) as unknown as PlayerRow | undefined;
+      return {
+        scope: player?.servers_scope ?? 'account',
+        serversDat: player?.servers_dat ? Buffer.from(player.servers_dat).toString('base64') : null,
+      };
+    },
+  );
+
+  app.put(
+    '/players/:uuid/servers',
+    {
+      preHandler: requireOwner,
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        params: UUID_PARAM_SCHEMA,
+        body: {
+          type: 'object',
+          properties: {
+            scope: { type: 'string', enum: ['account', 'profile', 'off'] },
+            serversDat: { type: ['string', 'null'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { uuid } = request.params as UuidParams;
+      const body = request.body as { scope?: string; serversDat?: string | null };
+
+      const existing = getPlayer.get(uuid) as unknown as PlayerRow | undefined;
+      // An omitted serversDat means "only updating scope", not "clear the list".
+      let serversDat: Buffer | Uint8Array | null = existing?.servers_dat ?? null;
+      if (body.serversDat) {
+        const decoded = Buffer.from(body.serversDat, 'base64');
+        if (decoded.length > MAX_SERVERS_DAT_BYTES) {
+          return reply.code(413).send({ error: 'servers.dat too large' });
+        }
+        serversDat = decoded;
+      }
+      const scope = body.scope ?? existing?.servers_scope ?? 'account';
+
+      const now = Date.now();
+      db.prepare(
+        `INSERT INTO players (uuid, created_at, last_seen_at, servers_dat, servers_scope)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(uuid) DO UPDATE SET
+           last_seen_at = excluded.last_seen_at,
+           servers_dat = excluded.servers_dat,
+           servers_scope = excluded.servers_scope`,
+      ).run(uuid, now, now, serversDat, scope);
+      return { ok: true };
+    },
+  );
+
   app.post(
     '/players/:uuid/profiles/:name/rename',
     {
