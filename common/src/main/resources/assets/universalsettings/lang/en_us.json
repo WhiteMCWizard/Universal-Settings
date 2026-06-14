@@ -5,6 +5,7 @@
   "universalsettings.toast.authFailed": "Couldn't verify your Minecraft session, sync is disabled this session",
   "universalsettings.toast.offline": "Sync server unreachable, working from local copies",
   "universalsettings.toast.reconnected": "Sync server reachable again, settings synced",
+  "universalsettings.toast.serverTooOld": "Sync server is outdated; some settings may not sync",
   "universalsettings.firstrun.title": "Universal Settings",
   "universalsettings.firstrun.message": "You have remote settings, but this device's settings differ. What would you like to do?",
   "universalsettings.firstrun.useSynced": "Use remote settings",

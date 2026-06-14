@@ -71,7 +71,9 @@ For an end-to-end dev loop, point the run dir's `config/universalsettings.json` 
 | `DELETE /players/:uuid/profiles/:name` | JWT |
 | `GET\|PUT /players/:uuid/exclusions` | JWT |
 | `PUT /players/:uuid/profiles/:name/exclusions` | JWT |
+| `GET\|PUT /players/:uuid/servers` | JWT |
 | `GET /health` | |
+| `GET /version` | |
 
 ### Deploying the central server
 

@@ -3,7 +3,9 @@ package nl.whitemcwizard.universalsettings.net;
 import com.google.gson.Gson;
 import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.auth.SessionAuthenticator;
+import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.config.ModConfig;
+import nl.whitemcwizard.universalsettings.platform.Services;
 import nl.whitemcwizard.universalsettings.profile.AccountServers;
 import nl.whitemcwizard.universalsettings.profile.ProfileData;
 import nl.whitemcwizard.universalsettings.profile.ProfileSummary;
@@ -127,6 +129,23 @@ public class ApiClient {
     }
 
     /**
+     * Reads the server's version and protocol from the unauthenticated /version
+     * endpoint. A server predating that endpoint (HTTP 404) is reported as
+     * protocol 1, so the caller treats it as too old rather than failing.
+     */
+    public ServerInfo fetchServerInfo() throws IOException, InterruptedException {
+        String path = "/version";
+        HttpResponse<String> response = http.send(
+                builder(path).GET().build(), HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 404) {
+            return new ServerInfo("unknown", 1);
+        }
+        expectOk(response, "GET " + path);
+        VersionDto dto = gson.fromJson(response.body(), VersionDto.class);
+        return new ServerInfo(dto.version, dto.protocol);
+    }
+
+    /**
      * Fetches the account-level server list and its sync scope. Returns empty when
      * the server predates the account endpoint (HTTP 404), so a newer mod keeps
      * working against an older server instead of failing its whole sync.
@@ -239,7 +258,10 @@ public class ApiClient {
     private HttpRequest.Builder builder(String path) {
         String base = ModConfig.get().serverUrl.replaceAll("/+$", "");
         return HttpRequest.newBuilder(URI.create(base + path))
-                .timeout(Duration.ofSeconds(10));
+                .timeout(Duration.ofSeconds(10))
+                // Stamp every request so the server can observe client versions.
+                .header("X-Universal-Settings-Mod-Version", Services.PLATFORM.getModVersion())
+                .header("X-Universal-Settings-Protocol", String.valueOf(Constants.PROTOCOL_VERSION));
     }
 
     /** Only for requests with a body — Fastify rejects an empty application/json body. */
@@ -309,6 +331,11 @@ public class ApiClient {
     private static class ServersDto {
         String scope;
         String serversDat;
+    }
+
+    private static class VersionDto {
+        String version;
+        int protocol;
     }
 
     private static class PutResponse {

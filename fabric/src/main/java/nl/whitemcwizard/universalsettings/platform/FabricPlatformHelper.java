@@ -1,6 +1,7 @@
 package nl.whitemcwizard.universalsettings.platform;
 
 import net.fabricmc.loader.api.FabricLoader;
+import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.platform.services.IPlatformHelper;
 
 import java.nio.file.Path;
@@ -15,6 +16,13 @@ public class FabricPlatformHelper implements IPlatformHelper {
     @Override
     public boolean isModLoaded(String modId) {
         return FabricLoader.getInstance().isModLoaded(modId);
+    }
+
+    @Override
+    public String getModVersion() {
+        return FabricLoader.getInstance().getModContainer(Constants.MOD_ID)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
     }
 
     @Override

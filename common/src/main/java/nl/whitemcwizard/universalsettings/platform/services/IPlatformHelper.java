@@ -8,6 +8,9 @@ public interface IPlatformHelper {
 
     boolean isModLoaded(String modId);
 
+    /** This mod's version string (from the loader metadata), or "unknown". */
+    String getModVersion();
+
     boolean isDevelopmentEnvironment();
 
     Path getConfigDir();

@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.config.ModConfig;
 import nl.whitemcwizard.universalsettings.net.ApiClient;
+import nl.whitemcwizard.universalsettings.net.ServerInfo;
 import nl.whitemcwizard.universalsettings.options.DefaultOptionsDetector;
 import nl.whitemcwizard.universalsettings.options.OptionsFileCodec;
 import nl.whitemcwizard.universalsettings.profile.AccountServers;
@@ -56,6 +57,7 @@ public class SyncManager {
     private volatile int startupAttempts;
     private volatile boolean optionsFileExisted;
     private volatile boolean authFailedToastShown;
+    private volatile boolean serverTooOldToastShown;
     private volatile ProfileData pendingPrompt;
     private volatile boolean offline;
     private volatile boolean reconcileScheduled;
@@ -461,8 +463,29 @@ public class SyncManager {
         config.profileOptionsCache = OptionsFileCodec.withoutForcedExclusions(profile.options());
     }
 
+    /**
+     * Warns once per session when the sync server's protocol is older than this
+     * client's, so missing features (e.g. account server lists on a stale server)
+     * are explained rather than silently dropped. A soft check: sync continues
+     * regardless, and connectivity failures are left to the main sync path.
+     */
+    private void checkServerVersion(Minecraft mc) {
+        try {
+            ServerInfo info = api.fetchServerInfo();
+            if (info.protocol() < Constants.PROTOCOL_VERSION && !serverTooOldToastShown) {
+                serverTooOldToastShown = true;
+                Toasts.showLater(mc, "universalsettings.toast.serverTooOld");
+                Constants.LOG.warn("Sync server protocol {} is older than client {}; some features may not work",
+                        info.protocol(), Constants.PROTOCOL_VERSION);
+            }
+        } catch (Exception e) {
+            Constants.LOG.debug("Could not read server version: {}", e.toString());
+        }
+    }
+
     private void startupSync(Minecraft mc) {
         ModConfig config = ModConfig.get();
+        checkServerVersion(mc);
         try {
             config.globalExclusions = new java.util.ArrayList<>(
                     api.fetchGlobalExclusions(playerUuid(mc)));

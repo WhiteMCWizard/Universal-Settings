@@ -9,6 +9,13 @@ public class Constants {
 	public static final String MOD_NAME = "UniversalSettings";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
 
+	/**
+	 * Sync protocol this client speaks. Bumped when the client starts requiring a
+	 * new server capability; the client warns when the server reports a lower one.
+	 * 1 = 0.1.0 baseline; 2 = account server-list endpoints + /version.
+	 */
+	public static final int PROTOCOL_VERSION = 2;
+
 	/** The central sync server operated by the mod author; overridable via config. */
 	public static final String DEFAULT_SERVER_URL = "https://universalsettings.whitemcwizard.nl";
 }

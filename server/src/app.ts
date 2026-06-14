@@ -4,6 +4,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import { openDb } from './db.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerProfileRoutes } from './routes/profiles.js';
+import { SERVER_VERSION, PROTOCOL_VERSION } from './version.js';
 
 export interface AppOptions {
   dbPath?: string;
@@ -39,6 +40,9 @@ export async function buildApp(opts: AppOptions = {}) {
   registerProfileRoutes(app, db);
 
   app.get('/health', async () => ({ ok: true }));
+
+  // Unauthenticated: lets a client detect a server too old for its protocol.
+  app.get('/version', async () => ({ version: SERVER_VERSION, protocol: PROTOCOL_VERSION }));
 
   app.addHook('onClose', async () => {
     db.close();

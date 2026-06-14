@@ -9,6 +9,7 @@ import net.neoforged.fml.loading.FMLPaths;
 import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 *///?}
+import nl.whitemcwizard.universalsettings.Constants;
 import nl.whitemcwizard.universalsettings.platform.services.IPlatformHelper;
 
 import java.nio.file.Path;
@@ -23,6 +24,13 @@ public class NeoForgePlatformHelper implements IPlatformHelper {
     @Override
     public boolean isModLoaded(String modId) {
         return ModList.get().isLoaded(modId);
+    }
+
+    @Override
+    public String getModVersion() {
+        return ModList.get().getModContainerById(Constants.MOD_ID)
+                .map(container -> container.getModInfo().getVersion().toString())
+                .orElse("unknown");
     }
 
     @Override
