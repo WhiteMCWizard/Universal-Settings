@@ -1,0 +1,29 @@
+# SRG runtime discovers the mixin config via the jar manifest (MixinConfigs), so no
+# [[mixins]] block. Version ranges reuse the neoforge_* props (same Forge 47.x on 1.20.1).
+modLoader = "javafml"
+loaderVersion = "${neoforge_loader_version_range}"
+license = "${license}"
+issueTrackerURL = "https://github.com/WhiteMCWizard/Universal-Settings/issues"
+[[mods]]
+modId = "${mod_id}"
+version = "${version}"
+displayName = "${mod_name}"
+displayURL = "https://github.com/WhiteMCWizard/Universal-Settings"
+logoFile = "${mod_id}.png"
+credits = "${credits}"
+authors = "${mod_author}"
+description = '''${description}'''
+# Client-only mod: don't flag servers without it as incompatible in the server list.
+displayTest = "IGNORE_ALL_VERSION"
+[[dependencies.${mod_id}]]
+modId = "forge"
+mandatory = true
+versionRange = "${neoforge_loader_version_range}"
+ordering = "NONE"
+side = "CLIENT"
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+mandatory = true
+versionRange = "${minecraft_version_range_neoforge}"
+ordering = "NONE"
+side = "CLIENT"

@@ -36,6 +36,12 @@ stonecutter {
         branch 'common'
         branch 'fabric'
         branch 'neoforge'
+        // Forge ships real MinecraftForge only through 1.20.1 in our toolchain
+        // (ModDevGradle's legacyforge plugin tops out there); newer versions are
+        // NeoForge-only. So this branch builds the single version it can support.
+        branch('forge') {
+            versions '1.20.1'
+        }
         vcsVersion = '26.1.2'
     }
 }

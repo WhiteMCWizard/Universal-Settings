@@ -1,0 +1,88 @@
+plugins {
+    id 'multiloader-loader'
+}
+
+def branchDir = project.parent.projectDir
+def commonDir = rootProject.project(':common').projectDir
+
+// Real MinecraftForge 1.20.1 on ModDev's legacy (MCP/SRG) toolchain. The plain
+// `version` setter resolves net.minecraftforge:forge — unlike the neoforge branch,
+// which uses enable { neoForgeVersion = ... } to pull NeoForge's net.neoforged:forge
+// fork. This branch only ever targets 1.20.1: MDG's legacyforge plugin supports real
+// Forge no further, and 1.21+ is NeoForge-only.
+apply plugin: 'net.neoforged.moddev.legacyforge'
+def modDev = extensions.getByName('legacyForge')
+modDev.version = versionProp('forge_version')
+
+// MDG only registers NeoForge repositories automatically; net.minecraftforge:forge
+// is published to Forge's own maven.
+repositories {
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+}
+
+modDev.with {
+    def at = new File(commonDir, 'src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
+    }
+    runs {
+        configureEach {
+            ideName = "Forge ${it.name.capitalize()} (${project.path})"
+        }
+        client {
+            client()
+            gameDirectory = this.mkdir(this.file("runs/client"))
+        }
+        server {
+            server()
+            this.file("runs/server").createParentDirectories()
+            gameDirectory = this.mkdir(this.file("runs/server"))
+        }
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir new File(branchDir, 'src/generated/resources') }
+
+// ModDev needs the preprocessed sources before it sets up Minecraft artifacts.
+tasks.named('createMinecraftArtifacts') {
+    dependsOn('stonecutterGenerate')
+}
+
+// On the SRG runtime mixins need an annotation-processor-generated refmap, and the
+// config is discovered through the jar manifest rather than mods.toml.
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+tasks.named('jar', Jar) {
+    manifest.attributes(['MixinConfigs': "${mod_id}.mixins.json"])
+}
+
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'forge')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName, it.getTaskName(null, 'jarJar')].each { variant ->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'forge')
+            }
+        }
+    }
+}
