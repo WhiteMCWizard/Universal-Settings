@@ -57,7 +57,7 @@ public class FirstRunScreen extends Screen {
                 }).width(250).build());
         rows.addChild(Button.builder(
                 Component.translatable("universalsettings.firstrun.keep"),
-                button -> this.minecraft.setScreen(new NameProfileScreen(this,
+                button -> Screens.set(this.minecraft,new NameProfileScreen(this,
                         Component.translatable("universalsettings.firstrun.keepTitle"),
                         SyncManager.deviceProfileName(),
                         name -> {
@@ -79,6 +79,6 @@ public class FirstRunScreen extends Screen {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(parent);
+        Screens.set(this.minecraft,parent);
     }
 }

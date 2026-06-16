@@ -254,7 +254,7 @@ public class IgnoredSettingsScreen extends Screen {
                 new ArrayList<>(globalSet), globalDirty,
                 () -> {
                 }, message -> Toasts.show("universalsettings.toast.exclusionsFailed"));
-        this.minecraft.setScreen(parent);
+        Screens.set(this.minecraft, parent);
     }
 
     private class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry> {

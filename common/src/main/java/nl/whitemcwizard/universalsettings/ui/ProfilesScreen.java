@@ -95,7 +95,7 @@ public class ProfilesScreen extends Screen {
         /*GridLayout.RowHelper row3 = footer.addChild(new GridLayout().columnSpacing(4)).createRowHelper(2);
         *///?}
         row3.addChild(button("universalsettings.ignored.button", 156,
-                b -> this.minecraft.setScreen(new IgnoredSettingsScreen(this))));
+                b -> Screens.set(this.minecraft,new IgnoredSettingsScreen(this))));
         row3.addChild(Button.builder(CommonComponents.GUI_DONE, b -> onClose()).width(156).build());
 
         layout.visitWidgets(this::addRenderableWidget);
@@ -193,7 +193,7 @@ public class ProfilesScreen extends Screen {
 
     private void rename() {
         String name = selectedName;
-        this.minecraft.setScreen(new NameProfileScreen(this,
+        Screens.set(this.minecraft,new NameProfileScreen(this,
                 Component.translatable("universalsettings.profiles.renameTitle", name), name,
                 newName -> {
                     setStatus(null);
@@ -204,7 +204,7 @@ public class ProfilesScreen extends Screen {
 
     private void duplicate() {
         String name = selectedName;
-        this.minecraft.setScreen(new NameProfileScreen(this,
+        Screens.set(this.minecraft,new NameProfileScreen(this,
                 Component.translatable("universalsettings.profiles.duplicateTitle", name), name + " 2",
                 newName -> {
                     setStatus(null);
@@ -213,7 +213,7 @@ public class ProfilesScreen extends Screen {
     }
 
     private void newProfile() {
-        this.minecraft.setScreen(new NameProfileScreen(this,
+        Screens.set(this.minecraft,new NameProfileScreen(this,
                 Component.translatable("universalsettings.profiles.newTitle"), "",
                 name -> {
                     setStatus(null);
@@ -229,8 +229,8 @@ public class ProfilesScreen extends Screen {
         String name = selected.name();
         boolean wasDefault = selected.isDefault();
         Component message = Component.translatable("universalsettings.profiles.deleteConfirm", name);
-        this.minecraft.setScreen(new ConfirmScreen(confirmed -> {
-            this.minecraft.setScreen(this);
+        Screens.set(this.minecraft,new ConfirmScreen(confirmed -> {
+            Screens.set(this.minecraft,this);
             if (confirmed) {
                 SyncManager.get().deleteProfile(name, wasDefault,
                         () -> ifCurrent(this::refresh), this::showError);
@@ -244,14 +244,14 @@ public class ProfilesScreen extends Screen {
 
     /** Async callbacks may arrive after the player closed this screen. */
     private void ifCurrent(Runnable action) {
-        if (this.minecraft != null && this.minecraft.screen == this) {
+        if (this.minecraft != null && Screens.current(this.minecraft) == this) {
             action.run();
         }
     }
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(parent);
+        Screens.set(this.minecraft,parent);
     }
 
     private class ProfileList extends ObjectSelectionList<ProfileList.Entry> {

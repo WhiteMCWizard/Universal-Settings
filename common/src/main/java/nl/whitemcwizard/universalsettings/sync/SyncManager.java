@@ -14,6 +14,7 @@ import nl.whitemcwizard.universalsettings.profile.ProfileCache;
 import nl.whitemcwizard.universalsettings.profile.ProfileData;
 import nl.whitemcwizard.universalsettings.profile.ProfileSummary;
 import nl.whitemcwizard.universalsettings.ui.FirstRunScreen;
+import nl.whitemcwizard.universalsettings.ui.Screens;
 import nl.whitemcwizard.universalsettings.ui.Toasts;
 
 import java.io.IOException;
@@ -80,9 +81,9 @@ public class SyncManager {
 
     public void onEndTick(Minecraft mc) {
         ProfileData prompt = pendingPrompt;
-        if (prompt != null && mc.screen instanceof TitleScreen) {
+        if (prompt != null && Screens.current(mc) instanceof TitleScreen) {
             pendingPrompt = null;
-            mc.setScreen(new FirstRunScreen(mc.screen, prompt));
+            Screens.set(mc, new FirstRunScreen(Screens.current(mc), prompt));
         }
     }
 

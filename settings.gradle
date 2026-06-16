@@ -32,7 +32,7 @@ stonecutter {
     create(getRootProject()) {
         // One entry per supported Minecraft version; per-version properties live in
         // versions/{version}/gradle.properties. The branches inherit this list.
-        versions '1.20.1', '1.21.1', '1.21.11', '26.1.2'
+        versions '1.20.1', '1.21.1', '1.21.11', '26.1.2', '26.2'
         branch 'common'
         branch 'fabric'
         branch 'neoforge'
@@ -42,7 +42,7 @@ stonecutter {
         branch('forge') {
             versions '1.20.1'
         }
-        vcsVersion = '26.1.2'
+        vcsVersion = '26.2'
     }
 }
 

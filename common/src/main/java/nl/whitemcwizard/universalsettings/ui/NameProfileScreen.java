@@ -95,12 +95,12 @@ public class NameProfileScreen extends Screen {
         if (!VALID_NAME.matcher(name).matches()) {
             return;
         }
-        this.minecraft.setScreen(parent);
+        Screens.set(this.minecraft,parent);
         onConfirm.accept(name);
     }
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(parent);
+        Screens.set(this.minecraft,parent);
     }
 }

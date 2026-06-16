@@ -9,6 +9,7 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 *///?}
 import net.minecraft.network.chat.Component;
 import nl.whitemcwizard.universalsettings.ui.ProfilesScreen;
+import nl.whitemcwizard.universalsettings.ui.Screens;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,7 +31,7 @@ public abstract class OptionsScreenMixin extends Screen {
     private void universalsettings$addProfilesButton(CallbackInfo ci) {
         universalsettings$profilesButton = this.addRenderableWidget(Button.builder(
                         Component.translatable("universalsettings.profiles.button"),
-                        button -> this.minecraft.setScreen(new ProfilesScreen(this)))
+                        button -> Screens.set(this.minecraft, new ProfilesScreen(this)))
                 .bounds(this.width - 65, 6, 60, 20)
                 .build());
     }
