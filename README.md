@@ -30,7 +30,7 @@ Prefer not to use the central server? This repository includes the full server (
 
 Multi-version builds are managed by [Stonecutter](https://stonecutter.kikugie.dev/):
 every supported Minecraft version is a Gradle subproject ("node") of each branch,
-e.g. `:fabric:26.1.2`. The active version's sources live directly in `{branch}/src/`;
+e.g. `:fabric:26.3`. The active version's sources live directly in `{branch}/src/`;
 use the `Reset active project` task before committing after a version switch.
 
 To add a Minecraft version: register it in `settings.gradle` (`versions '26.1.2', '...'`),
